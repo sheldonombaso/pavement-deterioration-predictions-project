@@ -1,0 +1,346 @@
+--FIRST RUN bronze the run silver layer
+
+--EXEC bronze.load_bronze
+--then
+--EXEC silver.load_silver
+
+USE IRIDataWarehouse;
+GO
+
+-- ============================================================
+-- STEP 4: DATA CLEANING
+-- BRONZE -> SILVER
+-- PRIMARY NYANZA DATA
+-- FULL LOAD
+-- ============================================================
+
+-- CREATE STORED PROCEDURE
+-- This procedure will truncate the existing Silver data
+-- and then reload the cleaned data from Bronze.
+-- This is a FULL LOAD strategy and helps avoid duplication.
+
+CREATE OR ALTER PROCEDURE silver.load_silver
+AS
+BEGIN
+
+    -- ============================================================
+    -- DECLARE VARIABLES FOR TRACKING LOAD TIME
+    -- ============================================================
+
+    DECLARE @start_time DATETIME,
+            @end_time DATETIME,
+            @batch_start_time DATETIME,
+            @batch_end_time DATETIME;
+
+
+    -- ============================================================
+    -- TRY BLOCK
+    -- If an error occurs during the loading process,
+    -- SQL Server will move to the CATCH block below.
+    -- ============================================================
+
+    BEGIN TRY
+
+
+        -- ========================================================
+        -- RECORD THE START TIME OF THE COMPLETE BATCH
+        -- ========================================================
+
+        SET @batch_start_time = GETDATE();
+
+
+        PRINT '=====================================================';
+        PRINT 'Loading Silver Layer';
+        PRINT '=====================================================';
+
+
+        -- ========================================================
+        -- LOADING PRIMARY DATA TABLES
+        -- ========================================================
+
+        PRINT '=====================================================';
+        PRINT 'Loading Primary Data Tables';
+        PRINT '=====================================================';
+
+
+        -------------------------------
+        -- Loading Primary Data
+        -------------------------------
+
+
+        -- ========================================================
+        -- RECORD START TIME FOR PRIMARY NYANZA TABLE
+        -- ========================================================
+
+        SET @start_time = GETDATE();
+
+
+        -- ========================================================
+        -- STEP 1: TRUNCATE SILVER TABLE
+        -- ========================================================
+        -- TRUNCATE removes all existing records from the Silver
+        -- table before loading the fresh cleaned data.
+        --
+        -- This prevents duplication when the procedure is run again.
+        -- ========================================================
+
+        PRINT '>> Truncating Table: silver.primary_nyanza_data';
+
+        TRUNCATE TABLE silver.primary_nyanza_data;
+
+
+        -- ========================================================
+        -- STEP 2: INSERT CLEANED DATA INTO SILVER
+        -- ========================================================
+
+        PRINT '>> Inserting Data Into: silver.primary_nyanza_data';
+
+
+        INSERT INTO silver.primary_nyanza_data
+        (
+            [year],
+            [road_code],
+            [road_name],
+            [road_type],
+            [distance],
+            [IRI],
+            [latitude],
+            [longitude],
+            [IRI_classification],
+            [good],
+            [fair],
+            [poor],
+            [construction_year],
+            [pavement_age],
+            [intervention_undertaken],
+            [intervention_required],
+            [surface_type],
+            [base_type],
+            [thickness_mm]
+        )
+
+
+        -- ========================================================
+        -- SELECT AND CLEAN DATA FROM BRONZE
+        -- ========================================================
+
+        SELECT
+
+
+            -- ==============================
+            -- NUMERIC CLEANING
+            -- ==============================
+
+            [year],
+
+
+            -- ==============================
+            -- TEXT CLEANING
+            -- TRIM removes unwanted spaces
+            -- from the beginning and end of text.
+            -- ==============================
+
+            TRIM([road_code]) AS [road_code],
+
+            TRIM([road_name]) AS [road_name],
+
+            TRIM([road_type]) AS [road_type],
+
+
+            -- ==============================
+            -- NUMERIC COLUMNS
+            -- ==============================
+
+            [distance],
+
+            [IRI],
+
+            [latitude],
+
+            [longitude],
+
+
+            -- ==============================
+            -- TEXT CLEANING
+            -- ==============================
+
+            TRIM([IRI_classification]) AS [IRI_classification],
+
+            [good],
+
+            [fair],
+
+            [poor],
+
+            [construction_year],
+
+            [pavement_age],
+
+
+            -- ==============================
+            -- REMOVE UNWANTED SPACES
+            -- ==============================
+
+            TRIM([intervention_undertaken])
+                AS [intervention_undertaken],
+
+            TRIM([intervention_required])
+                AS [intervention_required],
+
+
+            -- ====================================================
+            -- DATA STRING / TEXT STANDARDIZATION
+            -- ====================================================
+            -- CASE is used to convert short codes into
+            -- meaningful descriptions.
+            -- UPPER ensures that different letter cases
+            -- are treated consistently.
+            -- ====================================================
+
+            CASE
+                WHEN UPPER(TRIM([surface_type])) = 'AC'
+                    THEN 'Asphalt Concrete'
+
+                ELSE 'N/A'
+
+            END AS [surface_type],
+
+
+            -- ====================================================
+            -- BASE TYPE STANDARDIZATION
+            -- ====================================================
+
+            CASE
+
+                WHEN UPPER(TRIM([base_type])) = 'DBM'
+                    THEN 'Dense Bituminous Macadam'
+
+                WHEN UPPER(TRIM([base_type])) = 'CIG/GCS BASE'
+                    THEN 'Crushed Improved Gravel / Graded Crushed Stone'
+
+                WHEN UPPER(TRIM([base_type])) = 'IMPROVED BASE'
+                    THEN 'Improved Base'
+
+                WHEN UPPER(TRIM([base_type])) = 'LIME IMPROVED GRAVEL'
+                    THEN 'Lime Improved Gravel'
+
+                ELSE 'N/A'
+
+            END AS [base_type],
+
+
+            -- ====================================================
+            -- DATA TYPE CLEANING
+            -- ====================================================
+            -- TRY_CAST attempts to convert thickness_mm
+            -- into a decimal number.
+            -- If conversion fails, it returns NULL instead
+            -- of stopping the entire load.
+            -- ====================================================
+
+            TRY_CAST([thickness_mm] AS DECIMAL(10,2))
+                AS [thickness_mm]
+
+
+        -- ========================================================
+        -- SOURCE TABLE
+        -- Bronze contains the raw imported data.
+        -- ========================================================
+
+        FROM bronze.primary_nyanza_data
+
+
+        -- ========================================================
+        -- DATA VALIDATION
+        -- Only records with a valid road_code are loaded.
+        -- ========================================================
+
+        WHERE [road_code] IS NOT NULL
+          AND TRIM([road_code]) <> '';
+
+
+        -- ========================================================
+        -- RECORD END TIME FOR THIS TABLE
+        -- ========================================================
+
+        SET @end_time = GETDATE();
+
+
+        -- ========================================================
+        -- CALCULATE LOAD DURATION
+        -- ========================================================
+
+        PRINT '>> Load Duration: '
+            + CAST(
+                DATEDIFF(
+                    SECOND,
+                    @start_time,
+                    @end_time
+                ) AS NVARCHAR
+              )
+            + ' seconds';
+
+        PRINT '>> ------------------------';
+
+
+        -- ========================================================
+        -- RECORD END TIME FOR COMPLETE BATCH
+        -- ========================================================
+
+        SET @batch_end_time = GETDATE();
+
+
+        -- ========================================================
+        -- CALCULATE TOTAL BATCH LOAD DURATION
+        -- ========================================================
+
+        PRINT '------------------------------';
+
+        PRINT '   - Total Load Duration: '
+            + CAST(
+                DATEDIFF(
+                    SECOND,
+                    @batch_start_time,
+                    @batch_end_time
+                ) AS NVARCHAR
+              )
+            + ' seconds';
+
+        PRINT '====================================================================';
+
+
+    -- ============================================================
+    -- ERROR HANDLING
+    -- ============================================================
+
+    END TRY
+
+    BEGIN CATCH
+
+        PRINT '========================================================';
+
+        PRINT 'ERROR OCCURRED DURING LOADING SILVER LAYER';
+
+        PRINT 'Error Message: '
+            + ERROR_MESSAGE();
+
+        PRINT 'Error Number: '
+            + CAST(ERROR_NUMBER() AS NVARCHAR);
+
+        PRINT 'Error State: '
+            + CAST(ERROR_STATE() AS NVARCHAR);
+
+        PRINT '========================================================';
+
+    END CATCH
+
+
+    -- ============================================================
+    -- END STORED PROCEDURE
+    -- ============================================================
+
+END;
+GO
+
+
+
