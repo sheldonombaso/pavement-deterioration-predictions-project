@@ -1,4 +1,17 @@
 --FIRST RUN bronze the run silver layer
+--===========================================================
+
+--Script Purpose
+/*
+Script Purpose:
+    This performs various quality chekcs for data consistency, accuracy, and standardization in silver schema
+    -> Null or duplicate keys
+    -> Unwanted spaces in string fields
+    ->Data standardization and consistency
+    ->data consistency in fields
+N/B:::::::::::::::::::::::::::::Run this after loading silver layer
+
+*/
 
 --EXEC bronze.load_bronze
 --then
