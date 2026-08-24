@@ -1,0 +1,91 @@
+                            ---PART D:::; -
+-- INSERT CLEANED DATA INTO SILVER PRIMARY NYANZA TABLE
+--====================================================
+USE IRIDataWarehouse;
+GO
+
+
+
+INSERT INTO silver.primary_nyanza_data
+(
+    [year],
+    [road_code],
+    [road_name],
+    [road_type],
+    [distance],
+    [IRI],
+    [latitude],
+    [longitude],
+    [IRI_classification],
+    [good],
+    [fair],
+    [poor],
+    [construction_year],
+    [pavement_age],
+    [intervention_undertaken],
+    [intervention_required],
+    [surface_type],
+    [base_type],
+    [thickness_mm]
+)
+
+SELECT
+    TRY_CAST([year] AS INT) AS [year],
+
+    TRIM([road_code]) AS [road_code],
+
+    TRIM([road_name]) AS [road_name],
+
+    TRIM([road_type]) AS [road_type],
+
+    TRY_CAST([distance] AS DECIMAL(12,2)) AS [distance],
+
+    TRY_CAST([IRI] AS DECIMAL(10,3)) AS [IRI],
+
+    TRY_CAST([latitude] AS DECIMAL(10,7)) AS [latitude],
+
+    TRY_CAST([longitude] AS DECIMAL(10,7)) AS [longitude],
+
+    TRIM([IRI_classification]) AS [IRI_classification],
+
+    TRY_CAST([good] AS INT) AS [good],
+
+    TRY_CAST([fair] AS INT) AS [fair],
+
+    TRY_CAST([poor] AS INT) AS [poor],
+
+    TRY_CAST([construction_year] AS INT) AS [construction_year],
+
+    TRY_CAST([pavement_age] AS INT) AS [pavement_age],
+
+    TRIM([intervention_undertaken]) AS [intervention_undertaken],
+
+    TRIM([intervention_required]) AS [intervention_required],
+
+    CASE
+        WHEN UPPER(TRIM([surface_type])) = 'AC'
+            THEN 'Asphalt Concrete'
+        ELSE 'N/A'
+    END AS [surface_type],
+
+    CASE
+        WHEN UPPER(TRIM([base_type])) = 'DBM'
+            THEN 'Dense Bituminous Macadam'
+
+        WHEN UPPER(TRIM([base_type])) = 'CIG/GCS BASE'
+            THEN 'Crushed Improved Gravel / Graded Crushed Stone'
+
+        WHEN UPPER(TRIM([base_type])) = 'IMPROVED BASE'
+            THEN 'Improved Base'
+
+        WHEN UPPER(TRIM([base_type])) = 'LIME IMPROVED GRAVEL'
+            THEN 'Lime Improved Gravel'
+
+        ELSE 'N/A'
+    END AS [base_type],
+
+    TRY_CAST([thickness_mm] AS DECIMAL(10,2)) AS [thickness_mm]
+
+FROM bronze.primary_nyanza_data
+WHERE [road_code] IS NOT NULL
+  AND TRIM([road_code]) <> '';
