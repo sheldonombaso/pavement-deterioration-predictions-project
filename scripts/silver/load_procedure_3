@@ -1,0 +1,93 @@
+-------------------------------------------------------------------------------------------------
+                        -------PART C
+--------------------------------------------------------------------------------------------------
+USE IRIDataWarehouse;
+GO
+PRINT '>>: Truncate Table: silver.secondary_kenya_data';
+
+TRUNCATE TABLE silver.secondary_kenya_data;
+GO
+PRINT '>>: Inserting Data Into: silver.secondary_kenya_data';
+INSERT INTO silver.secondary_kenya_data
+(
+    [year],
+    [road_code],
+    [road_name],
+    [road_type],
+    [distance],
+    [IRI],
+    [latitude],
+    [longitude],
+    [IRI_classification],
+    [good],
+    [fair],
+    [poor],
+    [construction_year],
+    [pavement_age],
+    [intervention_undertaken],
+    [intervention_required],
+    [surface_type],
+    [base_type],
+    [thickness_mm]
+)
+--============================== NUMERIC CLEANING-========================
+SELECT
+
+    [year],
+    TRIM([road_code]),
+    TRIM([road_name]),
+    TRIM([road_type]),
+---=========================TEXT CLEANING-==========================================
+    [distance],
+    [IRI],
+    [latitude],
+    [longitude],
+    TRIM([IRI_classification]),
+    [good],
+    [fair],
+    [poor],
+    [construction_year],
+    [pavement_age],
+    TRIM([intervention_undertaken]),
+    TRIM([intervention_required]),
+
+ -- DATA STRING/TEXT STANDARDIZATION==========================================================
+
+
+    CASE
+        WHEN UPPER(TRIM([surface_type])) = 'AC'
+            THEN 'Asphalt Concrete'
+        ELSE 'N/A'
+    END,
+
+    CASE
+        WHEN UPPER(TRIM([base_type])) = 'DBM'
+            THEN 'Dense Bituminous Macadam'
+
+        WHEN UPPER(TRIM([base_type])) = 'CIG/GCS BASE'
+            THEN 'Crushed Improved Gravel / Graded Crushed Stone'
+
+        WHEN UPPER(TRIM([base_type])) = 'IMPROVED BASE'
+            THEN 'Improved Base'
+
+        WHEN UPPER(TRIM([base_type])) = 'LIME IMPROVED GRAVEL'
+            THEN 'Lime Improved Gravel'
+
+        ELSE 'N/A'
+    END,
+-- =========================NUMERIC STANDARDIZATION==========================
+
+    TRY_CAST([thickness_mm] AS DECIMAL(10,2))
+
+FROM bronze.secondary_kenya_data
+
+WHERE [road_code] IS NOT NULL
+  AND TRIM([road_code]) <> '';
+
+GO
+/*
+SELECT COUNT(*) AS SilverRows
+FROM silver.secondary_kenya_data;
+GO
+
+*/
